@@ -1,0 +1,17 @@
+/// 错误码定义表
+model ErrorCode {
+  /// 错误码 (如 400, 401, 500 等) 错误码唯一标识
+  code        Int      @unique @db.SmallInt
+  /// 错误信息描述
+  message     String   @db.VarChar(255)
+  /// 错误类型分类
+  category    String?  @db.VarChar(50)
+  /// 状态: 1=启用, 0=禁用
+  status      Int      @default(1) @db.TinyInt
+  /// 创建时间
+  createdTime DateTime @default(now()) @map("created_time")
+  /// 更新时间
+  updatedTime DateTime @updatedAt @map("updated_time")
+
+  @@map("error_code")
+}

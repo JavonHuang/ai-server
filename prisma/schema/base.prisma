@@ -1,0 +1,10 @@
+// Prisma 基础配置文件
+
+datasource db {
+  provider = "mysql"
+}
+
+generator client {
+  provider = "prisma-client"
+  output   = "../../src/generated/prisma"
+}

@@ -1,0 +1,25 @@
+/// 用户账号表
+model UserAccount {
+  /// 用户唯一标识 (UUID)
+  id          String   @id @default(uuid())
+  /// 用户昵称
+  userName    String?  @map("user_name") @db.VarChar(100)
+  /// 登录账号
+  userAccount String?  @unique @map("user_account") @db.VarChar(50)
+  /// 密码
+  password    String?  @db.VarChar(255)
+  /// 邮箱
+  email       String?  @unique @db.VarChar(100)
+  /// 手机号
+  phone       String?  @db.VarChar(20)
+  /// 头像 URL
+  avatar      String?  @db.VarChar(500)
+  /// 状态: 1=启用, 0=禁用
+  status      Int      @default(1) @db.TinyInt
+  /// 创建时间
+  createdTime   DateTime @default(now()) @map("created_time")
+  /// 更新时间
+  updatedTime   DateTime @updatedAt @map("updated_time")
+
+  @@map("user_account")
+}

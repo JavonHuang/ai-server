@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+      {
+          "type": "node",
+          "request": "launch",
+          "name": "通过npm启动",
+          "runtimeExecutable": "pnpm",
+          "runtimeArgs": [
+            "dev"
+          ],
+          "console": "integratedTerminal",
+          "internalConsoleOptions": "neverOpen",
+          "skipFiles": [
+              "<node_internals>/**"
+          ]
+      }
+  ]
+}
