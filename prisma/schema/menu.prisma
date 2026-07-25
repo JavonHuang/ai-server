@@ -1,0 +1,41 @@
+/// 菜单表 — 支持无限层级树形结构
+model Menu {
+  /// 菜单唯一标识 (UUID)
+  id        String   @id @default(uuid())
+  /// 父节点ID（关联自身，自引用关系）
+  parentId  String?  @map("parent_id")
+  /// 菜单名称
+  name      String   @map("name")              @db.VarChar(100)
+  /// 菜单图标
+  icon      String?  @db.VarChar(200)
+  /// 物化路径：从根到当前节点的路径序列，如 "/a1-b2-c3/"，用于无限层级查询
+  path      String               @map("path")   @db.VarChar(500) @unique
+  /// 同级排序权重，数字越小越靠前
+  sortOrder Int      @default(0) @map("sort_order") @db.Int
+  /// 前端路由地址（与 link 二选一）
+  route     String?  @map("route")             @db.VarChar(500)
+  /// 外部或内部链接 URL（与 route 二选一）
+  link      String?  @map("link")              @db.VarChar(1000)
+  /// 链接打开方式：_self 同窗口 | _blank 新标签页
+  target    String?  @default("_self") @map("target") @db.VarChar(20)
+  /// 状态: 1=启用, 0=禁用（禁用的菜单不参与任何渲染）
+  status    Int      @default(1) @db.TinyInt
+  /// 可见性: 1=显示, 0=隐藏（业务层面控制是否展示）
+  visible   Int      @default(1) @db.TinyInt
+  /// 备注说明
+  remark    String?  @db.VarChar(500)
+  /// 创建时间
+  createdTime DateTime @default(now()) @map("created_time")
+  /// 更新时间
+  updatedTime DateTime @updatedAt @map("updated_time")
+
+  /// 直接父节点
+  parent Menu? @relation("MenuChildren", fields: [parentId], references: [id])
+  /// 直接子节点列表
+  children Menu[] @relation("MenuChildren")
+
+  @@index([path])
+  @@index([parentId])
+  @@index([sortOrder])
+  @@map("menu")
+}
