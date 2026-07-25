@@ -9,7 +9,7 @@ model Menu {
   /// 菜单图标
   icon      String?  @db.VarChar(200)
   /// 物化路径：从根到当前节点的路径序列，如 "/a1-b2-c3/"，用于无限层级查询
-  path      String               @map("path")   @db.VarChar(500) @unique
+  path      String               @map("path")   @db.VarChar(500)
   /// 同级排序权重，数字越小越靠前
   sortOrder Int      @default(0) @map("sort_order") @db.Int
   /// 前端路由地址（与 link 二选一）

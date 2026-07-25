@@ -1,6 +1,7 @@
 import Router from 'koa-router'
 import { menuLogic } from '@/logic'
 import { PageVO } from '@/utils/pageVO'
+import { getMissingFields } from '@/utils/validator'
 import type { MenuModel } from '@/generated/prisma/models/Menu'
 
 const router = new Router()
@@ -59,6 +60,12 @@ router.post('/menuPageList', async (ctx: any) => {
 router.post('/insertMenu', async (ctx: any) => {
   const bodyParam: any = ctx.request.body
 
+  const missing = getMissingFields(bodyParam, ['name'])
+  if (missing.length > 0) {
+    ctx.body = { code: 400, message: `参数不完整:[${missing.join(',')}]` }
+    return
+  }
+
   const data: Partial<MenuModel> & { parentId?: string | null } = {
     parentId: bodyParam.parentId || null,
     name: bodyParam.name,
@@ -82,6 +89,12 @@ router.post('/insertMenu', async (ctx: any) => {
  */
 router.post('/updateMenu', async (ctx: any) => {
   const bodyParam: any = ctx.request.body
+
+  const missing = getMissingFields(bodyParam, ['id'])
+  if (missing.length > 0) {
+    ctx.body = { code: 400, message: `参数不完整:[${missing.join(',')}]` }
+    return
+  }
 
   const data: Partial<MenuModel> & { id: string } = {
     id: bodyParam.id,
@@ -107,6 +120,12 @@ router.post('/updateMenu', async (ctx: any) => {
  */
 router.post('/deleteMenu', async (ctx: any) => {
   const bodyParam: any = ctx.request.body
+
+  const missing = getMissingFields(bodyParam, ['id'])
+  if (missing.length > 0) {
+    ctx.body = { code: 400, message: `参数不完整:[${missing.join(',')}]` }
+    return
+  }
 
   const result = await menuLogic.deleteMenu({ id: bodyParam.id })
   ctx.body = result

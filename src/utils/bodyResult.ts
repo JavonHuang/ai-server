@@ -14,7 +14,15 @@ export class BodyResult{
     this.code=code
   }
 
-  public result=() =>Promise.resolve(this)
+  public result=async () =>{
+    const errorInfo: ErrorCodeModel | null = await prisma.errorCode.findFirst({
+      where: {
+        code: this.code,
+      }
+    })
+    this.message = errorInfo?.message
+    return Promise.resolve(this)
+  }
 
   public resultPageVO=async (param:PageVO<any>) =>{
     this.page = param.currentPage
