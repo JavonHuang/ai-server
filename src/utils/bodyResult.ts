@@ -7,7 +7,7 @@ export class BodyResult{
   code: number
   message:string|undefined
   total:number=0
-  page:number=0
+  currentPage:number=0
   pageSize:number=0
   constructor(data:any,code:number){
     this.data=data
@@ -25,7 +25,7 @@ export class BodyResult{
   }
 
   public resultPageVO=async (param:PageVO<any>) =>{
-    this.page = param.currentPage
+    this.currentPage = param.currentPage
     this.pageSize = param.pageSize
     this.total = param.total
     const errorInfo: ErrorCodeModel | null = await prisma.errorCode.findFirst({
