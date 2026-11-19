@@ -2,6 +2,8 @@ import Router from 'koa-router'
 import { userAccountLogic } from '@/logic'
 import { PageVO } from '@/utils/pageVO'
 import type { UserAccountModel } from '@/generated/prisma/models/UserAccount'
+import validate from '@/middleware/validate'
+import { userSchema } from '@/schema/userAccountSchema'
 
 const router = new Router()
 
@@ -11,7 +13,7 @@ const router = new Router()
  * 用户登录
  * POST /userAccount/login
  */
-router.post('/login', async (ctx: any) => {
+router.post('/login', validate(userSchema,'body'),async (ctx: any) => {
   const bodyParam: any = ctx.request.body
   const userInfo: UserAccountModel = {
     id: "",

@@ -60,6 +60,39 @@ app.use((ctx, next) => {
     }});
  });   
 
+ app.use( async (ctx, next) => {
+  try {
+    await next();
+    
+    // 处理 404 Not Found
+    if (ctx.status === 404 && !ctx.body) {
+      ctx.status = 404;
+      ctx.body = {
+        success: false,
+        message: 'Resource Not Found',
+        code: 404
+      };
+    }
+  } catch (err:any) {
+    // 1. 设置状态码：优先使用 err.status，否则默认 500
+    const status =  500;
+    ctx.status = status;
+
+    // 2. 统一返回格式
+    ctx.body = {
+      success: false,
+      message: err.message || 'Internal Server Error',
+      code: status,
+      // 开发环境下可以返回堆栈信息，生产环境建议隐藏
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    };
+
+    // 3. 触发应用级别的 error 事件，用于日志记录
+    // 注意：不要在这里直接 console.error，而是交给 app.on('error') 处理
+    ctx.app.emit('error', err, ctx);
+  }
+})
+
 app.use(koaBody({
   multipart: true,  
   formidable: {
