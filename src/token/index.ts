@@ -5,8 +5,15 @@ import  jwt  from  'jsonwebtoken';
 const secret = 'my_app_secret';
 // const payload = {user_name:'Jack', id:3, email: '1234@gmail.com'};
 
+/** JWT 不支持 bigint，签名前清理 */
+function cleanForJWT(user: UserAccountModel): any {
+  return JSON.parse(JSON.stringify(user, (k, v) =>
+    typeof v === 'bigint' ? Number(v) : v
+  ))
+}
+
 const generateToken = (user:UserAccountModel)=>{
-  return jwt.sign(user, secret, { expiresIn:  '12h' })
+  return jwt.sign(cleanForJWT(user), secret, { expiresIn:  '12h' })
 }
 
 const verify =(token:string)=>{
@@ -26,8 +33,6 @@ const verify =(token:string)=>{
       phone: null,
       avatar: null,
       status: 0,
-      createdTime: new Date(),
-      updatedTime: new Date(),
     } as UserAccountModel)
   }
   return null
@@ -49,8 +54,8 @@ const getUserInfo = (authorization:string):UserAccountModel=>{
     phone: null,
     avatar: null,
     status: 0,
-    createdTime: new Date(),
-    updatedTime: new Date(),
+    createdTime: BigInt(Date.now()),
+    updatedTime: BigInt(Date.now()),
   } as UserAccountModel
 }
 

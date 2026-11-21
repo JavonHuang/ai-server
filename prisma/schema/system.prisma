@@ -8,10 +8,10 @@ model ErrorCode {
   category    String?  @db.VarChar(50)
   /// 状态: 1=启用, 0=禁用
   status      Int      @default(1) @db.TinyInt
-  /// 创建时间
-  createdTime DateTime @default(now()) @map("created_time")
-  /// 更新时间
-  updatedTime DateTime @updatedAt @map("updated_time")
+  /// 创建时间（毫秒时间戳）
+  createdTime BigInt @map("created_time")
+  /// 更新时间（毫秒时间戳）
+  updatedTime BigInt @map("updated_time")
 
   @@map("error_code")
 }

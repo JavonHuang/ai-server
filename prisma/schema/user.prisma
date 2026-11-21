@@ -14,12 +14,22 @@ model UserAccount {
   phone       String?  @db.VarChar(20)
   /// 头像 URL
   avatar      String?  @db.VarChar(500)
+  /// 学历
+  education   String?  @map("education") @db.VarChar(50)
+  /// 毕业院校
+  graduateSchool String? @map("graduate_school") @db.VarChar(200)
+  /// 年龄
+  age         Int?     @db.TinyInt
+  /// 出生时间
+  birthday    String?  @map("birthday") @db.VarChar(20)
+  /// 个人简介
+  biography   String?  @map("biography") @db.VarChar(1000)
   /// 状态: 1=启用, 0=禁用
   status      Int      @default(1) @db.TinyInt
-  /// 创建时间
-  createdTime   DateTime @default(now()) @map("created_time")
-  /// 更新时间
-  updatedTime   DateTime @updatedAt @map("updated_time")
+  /// 创建时间（毫秒时间戳）
+  createdTime BigInt @map("created_time")
+  /// 更新时间（毫秒时间戳）
+  updatedTime BigInt @map("updated_time")
 
   @@map("user_account")
 }

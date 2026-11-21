@@ -1,0 +1,33 @@
+/// 用户证书表
+model UserCertificate {
+  /// 唯一标识 (UUID)
+  id                String   @id @default(uuid())
+  /// 关联的用户ID
+  userId            String   @map("user_id")
+  /// 证书名称（如：全国计算机等级考试一级证书）
+  certificateName   String   @map("certificate_name") @db.VarChar(200)
+  /// 证书类型：职业资格/技能等级/培训结业/其他
+  certificateType   String   @map("certificate_type") @db.VarChar(50)
+  /// 发证机关
+  issuingAuthority  String   @map("issuing_authority") @db.VarChar(200)
+  /// 发证时间戳
+  issueTime         BigInt   @map("issue_time")
+  /// 过期时间戳（无有效期可空）
+  expiryTime        BigInt?  @map("expiry_time")
+  /// 证书编号
+  certificateNo     String   @map("certificate_no") @db.VarChar(100)
+  /// 证书核验链接
+  verifyUrl         String?  @map("verify_url") @db.VarChar(500)
+  /// 证书图片/附件地址
+  attachmentUrl     String?  @map("attachment_url") @db.VarChar(500)
+  /// 状态: 1=有效, 0=失效
+  status            Int      @default(1) @db.TinyInt
+  /// 创建时间（毫秒时间戳）
+  createdTime       BigInt   @map("created_time")
+  /// 更新时间（毫秒时间戳）
+  updatedTime       BigInt   @map("updated_time")
+
+  @@index([userId])
+  @@index([certificateType])
+  @@map("user_certificate")
+}

@@ -1,0 +1,37 @@
+/// 用户工作经历表
+model UserWorkExperience {
+  /// 唯一标识 (UUID)
+  id              String   @id @default(uuid())
+  /// 关联的用户ID
+  userId          String   @map("user_id")
+  /// 公司名称
+  companyName     String   @map("company_name") @db.VarChar(200)
+  /// 职位名称
+  position        String   @map("position") @db.VarChar(100)
+  /// 部门
+  department      String?  @map("department") @db.VarChar(100)
+  /// 入职时间戳
+  startTime       BigInt   @map("start_time")
+  /// 离职时间戳
+  endTime         BigInt?  @map("end_time")
+  /// 是否在职：1=在职, 0=已离职
+  isCurrent       Int      @default(0) @map("is_current") @db.TinyInt
+  /// 工作职责描述
+  responsibilities String?  @map("responsibilities") @db.Text
+  /// 公司详细地址
+  address         String?  @map("address") @db.VarChar(500)
+  /// 证明人姓名
+  contactName     String?  @map("contact_name") @db.VarChar(100)
+  /// 证明人电话
+  contactPhone    String?  @map("contact_phone") @db.VarChar(20)
+  /// 状态: 1=启用, 0=禁用
+  status          Int      @default(1) @db.TinyInt
+  /// 创建时间（毫秒时间戳）
+  createdTime     BigInt   @map("created_time")
+  /// 更新时间（毫秒时间戳）
+  updatedTime     BigInt   @map("updated_time")
+
+  @@index([userId])
+  @@index([startTime])
+  @@map("user_work_experience")
+}

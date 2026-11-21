@@ -24,10 +24,10 @@ model Menu {
   visible   Int      @default(1) @db.TinyInt
   /// 备注说明
   remark    String?  @db.VarChar(500)
-  /// 创建时间
-  createdTime DateTime @default(now()) @map("created_time")
-  /// 更新时间
-  updatedTime DateTime @updatedAt @map("updated_time")
+  /// 创建时间（毫秒时间戳）
+  createdTime BigInt @map("created_time")
+  /// 更新时间（毫秒时间戳）
+  updatedTime BigInt @map("updated_time")
 
   /// 直接父节点
   parent Menu? @relation("MenuChildren", fields: [parentId], references: [id])

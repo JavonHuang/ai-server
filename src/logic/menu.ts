@@ -1,7 +1,17 @@
 import { BodyResult } from '@/utils/bodyResult'
 import { PageVO } from '@/utils/pageVO'
-import { prisma } from '@/utils/prisma'
+import {
+  findEnabledMenus,
+  findAllMenus,
+  findMenuPage,
+  createMenu,
+  updateMenu as dbUpdateMenu,
+  findMenuById,
+  deleteMenuAndDescendants,
+  findDescendantsByPath,
+} from '@/dbBase'
 import type { MenuModel } from '@/generated/prisma/models/Menu'
+import { safeBigInt } from './common'
 
 /**
  * 菜单树节点（扩展了 children 字段，时间戳转为字符串、状态字段转为字符串）
@@ -10,8 +20,8 @@ type MenuTreeNode = Omit<MenuModel, 'createdTime' | 'updatedTime' | 'status' | '
   children: MenuTreeNode[]
   status: string
   visible: string
-  createdTime: string
-  updatedTime: string
+  createdTime: number
+  updatedTime: number
 }
 
 /**
@@ -31,8 +41,8 @@ const formatMenuNode = (menu: MenuModel): MenuTreeNode => {
     status: String(menu.status),
     visible: String(menu.visible),
     remark: menu.remark,
-    createdTime: menu.createdTime.toISOString().replace('T', ' ').substring(0, 19),
-    updatedTime: menu.updatedTime.toISOString().replace('T', ' ').substring(0, 19),
+    createdTime: safeBigInt(menu.createdTime),
+    updatedTime: safeBigInt(menu.updatedTime),
     children: []
   }
 }
@@ -45,12 +55,10 @@ const buildMenuTree = (menus: MenuModel[]): MenuTreeNode[] => {
   const menuMap = new Map<string, MenuTreeNode>()
   const roots: MenuTreeNode[] = []
 
-  // 先建立 id -> node 的映射
   formattedMenus.forEach(node => {
     menuMap.set(node.id, node)
   })
 
-  // 遍历构建父子关系
   formattedMenus.forEach(node => {
     if (node.parentId && menuMap.has(node.parentId)) {
       menuMap.get(node.parentId)!.children.push(node)
@@ -59,7 +67,6 @@ const buildMenuTree = (menus: MenuModel[]): MenuTreeNode[] => {
     }
   })
 
-  // 按 sortOrder 递归排序
   const sortTree = (nodes: MenuTreeNode[]) => {
     nodes.sort((a, b) => a.sortOrder - b.sortOrder)
     nodes.forEach(node => {
@@ -78,16 +85,7 @@ const buildMenuTree = (menus: MenuModel[]): MenuTreeNode[] => {
  * GET /menu/menuTree
  */
 const getMenuTree = async () => {
-  const menus = await prisma.menu.findMany({
-    where: {
-      status: 1,
-      visible: 1
-    },
-    orderBy: {
-      sortOrder: 'asc'
-    }
-  })
-
+  const menus = await findEnabledMenus()
   const tree = buildMenuTree(menus)
   return new BodyResult(tree, 200).result()
 }
@@ -97,45 +95,20 @@ const getMenuTree = async () => {
  * POST /menu/menuPageList
  */
 const getMenuPageList = async (params: PageVO<Partial<MenuModel>>) => {
-  const where: any = {}
+  const { total, list } = await findMenuPage(
+    params.data || {},
+    params.startIndex,
+    params.pageSize
+  )
 
-  if (params.data?.name) {
-    where.name = { contains: params.data.name }
-  }
-  if (params.data?.parentId !== undefined) {
-    where.parentId = params.data.parentId
-  }
-  if (params.data?.status !== undefined) {
-    where.status = Number(params.data.status)
-  }
-  if (params.data?.visible !== undefined) {
-    where.visible = Number(params.data.visible)
-  }
-
-  // 查询总数
-  const total = await prisma.menu.count({ where })
-
-  // 查询数据
-  const menuList = await prisma.menu.findMany({
-    where,
-    skip: params.startIndex,
-    take: params.pageSize,
-    orderBy: [
-      { sortOrder: 'asc' },
-      { createdTime: 'desc' }
-    ]
-  })
-
-  // 格式化时间
-  const formattedList = menuList.map(menu => {
-    return {
-      ...menu,
-      status: String(menu.status),
-      visible: String(menu.visible),
-      createdTime: menu.createdTime.toISOString().replace('T', ' ').substring(0, 19),
-      updatedTime: menu.updatedTime.toISOString().replace('T', ' ').substring(0, 19),
-    }
-  })
+  // 转时间戳
+  const formattedList = list.map(menu => ({
+    ...menu,
+    status: String(menu.status),
+    visible: String(menu.visible),
+    createdTime: safeBigInt(menu.createdTime),
+    updatedTime: safeBigInt(menu.updatedTime),
+  }))
 
   const pageVOData = new PageVO<Array<typeof formattedList[0]>>(formattedList, params.currentPage, params.pageSize)
   pageVOData.total = total
@@ -148,12 +121,7 @@ const getMenuPageList = async (params: PageVO<Partial<MenuModel>>) => {
  * GET /menu/menuFullTree
  */
 const getMenuFullTree = async () => {
-  const menus = await prisma.menu.findMany({
-    orderBy: {
-      sortOrder: 'asc'
-    }
-  })
-
+  const menus = await findAllMenus()
   const tree = buildMenuTree(menus)
   return new BodyResult(tree, 200).result()
 }
@@ -164,48 +132,24 @@ const getMenuFullTree = async () => {
  */
 const insertMenu = async (data: Partial<MenuModel> & { parentId?: string | null }) => {
   try {
-    // 生成路径 path
     let path: string
     if (data.parentId) {
-      // 查询父节点路径
-      const parent = await prisma.menu.findUnique({
-        where: { id: data.parentId }
-      })
+      const parent = await findMenuById(data.parentId)
       if (!parent) {
         return new BodyResult(null, 1005).result() // 1005: 父节点不存在
       }
-      // 先创建，再用 id 更新 path
-      path = parent.path // 临时值，创建后会更新
+      path = parent.path
     } else {
-      path = '/' // 临时值
+      path = '/'
     }
 
-    // 创建菜单
-    const newMenu = await prisma.menu.create({
-      data: {
-        parentId: data.parentId || null,
-        name: data.name || '',
-        icon: data.icon || null,
-        path: path,
-        sortOrder: data.sortOrder ?? 0,
-        route: data.route || null,
-        link: data.link || null,
-        target: data.target || '_self',
-        status: data.status ?? 1,
-        visible: data.visible ?? 1,
-        remark: data.remark || null,
-      }
-    })
+    const newMenu = await createMenu({ ...data, path })
 
-    // 更新 path 为完整物化路径
     const fullPath = data.parentId
       ? `${path}${newMenu.id}/`
       : `/${newMenu.id}/`
 
-    await prisma.menu.update({
-      where: { id: newMenu.id },
-      data: { path: fullPath }
-    })
+    await dbUpdateMenu(newMenu.id, { path: fullPath })
 
     return new BodyResult(null, 200).result()
   } catch (error: any) {
@@ -220,29 +164,16 @@ const insertMenu = async (data: Partial<MenuModel> & { parentId?: string | null 
  */
 const updateMenu = async (data: Partial<MenuModel> & { id: string }) => {
   try {
-    const updateData: any = {}
-
-    if (data.name !== undefined) updateData.name = data.name
-    if (data.icon !== undefined) updateData.icon = data.icon
-    if (data.sortOrder !== undefined) updateData.sortOrder = Number(data.sortOrder)
-    if (data.route !== undefined) updateData.route = data.route
-    if (data.link !== undefined) updateData.link = data.link
-    if (data.target !== undefined) updateData.target = data.target
-    if (data.status !== undefined) updateData.status = Number(data.status)
-    if (data.visible !== undefined) updateData.visible = Number(data.visible)
-    if (data.remark !== undefined) updateData.remark = data.remark
+    const { id, ...updateData } = data
 
     // 处理父节点变更（需要更新当前节点及所有子节点的 path）
     if (data.parentId !== undefined) {
-      const currentMenu = await prisma.menu.findUnique({
-        where: { id: data.id }
-      })
+      const currentMenu = await findMenuById(id)
 
       if (!currentMenu) {
         return new BodyResult(null, 1007).result() // 1007: 菜单不存在
       }
 
-      // 不允许将自己设为自己的父节点
       if (data.parentId === data.id) {
         return new BodyResult(null, 1008).result() // 1008: 不能将菜单设为自身的子节点
       }
@@ -250,16 +181,12 @@ const updateMenu = async (data: Partial<MenuModel> & { id: string }) => {
       const newParentId = data.parentId || null
 
       if (currentMenu.parentId !== newParentId) {
-        // 计算新路径
         let newPath: string
         if (newParentId) {
-          const parent = await prisma.menu.findUnique({
-            where: { id: newParentId }
-          })
+          const parent = await findMenuById(newParentId)
           if (!parent) {
             return new BodyResult(null, 1005).result() // 1005: 父节点不存在
           }
-          // 检查是否会导致循环引用（新父节点的路径是否包含当前节点 id）
           if (parent.path.includes(`/${data.id}/`)) {
             return new BodyResult(null, 1009).result() // 1009: 不能将菜单移到自身的子节点下
           }
@@ -268,22 +195,12 @@ const updateMenu = async (data: Partial<MenuModel> & { id: string }) => {
           newPath = `/${data.id}/`
         }
 
-        // 更新所有子节点的 path
         const oldPath = currentMenu.path
-        const descendants = await prisma.menu.findMany({
-          where: {
-            path: { startsWith: oldPath },
-            id: { not: data.id }
-          }
-        })
+        const descendants = await findDescendantsByPath(oldPath, id)
 
-        // 批量更新子节点路径
         for (const desc of descendants) {
           const updatedPath = desc.path.replace(oldPath, newPath)
-          await prisma.menu.update({
-            where: { id: desc.id },
-            data: { path: updatedPath }
-          })
+          await dbUpdateMenu(desc.id, { path: updatedPath })
         }
 
         updateData.parentId = newParentId
@@ -291,11 +208,7 @@ const updateMenu = async (data: Partial<MenuModel> & { id: string }) => {
       }
     }
 
-    await prisma.menu.update({
-      where: { id: data.id },
-      data: updateData
-    })
-
+    await dbUpdateMenu(id, updateData)
     return new BodyResult(null, 200).result()
   } catch (error: any) {
     console.error('updateMenu error:', error)
@@ -312,21 +225,7 @@ const updateMenu = async (data: Partial<MenuModel> & { id: string }) => {
  */
 const deleteMenu = async (data: { id: string }) => {
   try {
-    const menu = await prisma.menu.findUnique({
-      where: { id: data.id }
-    })
-
-    if (!menu) {
-      return new BodyResult(null, 1007).result() // 1007: 菜单不存在
-    }
-
-    // 删除所有子菜单（通过 path 前缀匹配）
-    await prisma.menu.deleteMany({
-      where: {
-        path: { startsWith: menu.path }
-      }
-    })
-
+    await deleteMenuAndDescendants(data.id)
     return new BodyResult(null, 200).result()
   } catch (error: any) {
     console.error('deleteMenu error:', error)

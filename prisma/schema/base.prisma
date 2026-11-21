@@ -8,3 +8,5 @@ generator client {
   provider = "prisma-client"
   output   = "../../src/generated/prisma"
 }
+
+// include schema

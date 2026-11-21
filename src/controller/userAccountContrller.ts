@@ -3,7 +3,8 @@ import { userAccountLogic } from '@/logic'
 import { PageVO } from '@/utils/pageVO'
 import type { UserAccountModel } from '@/generated/prisma/models/UserAccount'
 import validate from '@/middleware/validate'
-import { userSchema } from '@/schema/userAccountSchema'
+import { loginSchema, userSearchSchema, userInsertSchema, userUpdateSchema } from '@/schema/userAccount'
+import { getUserSchema } from '@/schema/userAccount'
 
 const router = new Router()
 
@@ -13,19 +14,24 @@ const router = new Router()
  * 用户登录
  * POST /userAccount/login
  */
-router.post('/login', validate(userSchema,'body'),async (ctx: any) => {
+router.post('/login', validate(loginSchema, 'body'), async (ctx: any) => {
   const bodyParam: any = ctx.request.body
   const userInfo: UserAccountModel = {
-    id: "",
+    id: '',
     password: bodyParam.password,
     userAccount: bodyParam.userAccount,
     userName: bodyParam.userName,
     email: null,
     phone: null,
     avatar: null,
+    education: null,
+    graduateSchool: null,
+    age: null,
+    birthday: null,
+    biography: null,
     status: 0,
-    createdTime: new Date(),
-    updatedTime: new Date()
+    createdTime: BigInt(Date.now()),
+    updatedTime: BigInt(Date.now())
   }
   const params: PageVO<UserAccountModel> = new PageVO<UserAccountModel>(userInfo, bodyParam.currentPage, bodyParam.pageSize)
   const result = await userAccountLogic.loginAccount(params)
@@ -38,7 +44,7 @@ router.post('/login', validate(userSchema,'body'),async (ctx: any) => {
  * 用户列表（分页）
  * POST /userAccount/userAccountPageList
  */
-router.post('/userAccountPageList', async (ctx: any) => {
+router.post('/userAccountPageList', validate(userSearchSchema, 'body'), async (ctx: any) => {
   const bodyParam: any = ctx.request.body
 
   const searchData: Partial<UserAccountModel> = {
@@ -46,16 +52,13 @@ router.post('/userAccountPageList', async (ctx: any) => {
     userAccount: bodyParam.userAccount || undefined,
     email: bodyParam.email || undefined,
     phone: bodyParam.phone || undefined,
-    status: bodyParam.status !== undefined ? parseInt(bodyParam.status) : undefined
+    status: bodyParam.status !== undefined ? Number(bodyParam.status) : undefined
   }
-
-  const currentPage = parseInt(bodyParam.currentPage) || 1
-  const pageSize = parseInt(bodyParam.pageSize) || 10
 
   const params: PageVO<Partial<UserAccountModel>> = new PageVO<Partial<UserAccountModel>>(
     searchData,
-    currentPage,
-    pageSize
+    bodyParam.currentPage,
+    bodyParam.pageSize
   )
 
   const result = await userAccountLogic.userAccountPageList(params)
@@ -66,7 +69,7 @@ router.post('/userAccountPageList', async (ctx: any) => {
  * 新增用户信息
  * POST /userAccount/insertUserAccountList
  */
-router.post('/insertUserAccountList', async (ctx: any) => {
+router.post('/insertUserAccountList', validate(userInsertSchema, 'body'), async (ctx: any) => {
   const bodyParam: any = ctx.request.body
 
   const data: Partial<UserAccountModel> = {
@@ -75,10 +78,21 @@ router.post('/insertUserAccountList', async (ctx: any) => {
     password: bodyParam.password,
     email: bodyParam.email,
     phone: bodyParam.phone,
-    avatar: bodyParam.avatar
+    avatar: bodyParam.avatar,
+    education: bodyParam.education || null,
+    graduateSchool: bodyParam.graduateSchool || null,
+    age: bodyParam.age || null,
+    birthday: bodyParam.birthday || null,
+    biography: bodyParam.biography || null,
   }
 
-  const result = await userAccountLogic.insertUserAccount(data)
+  const result = await userAccountLogic.insertUserAccount({
+    ...data,
+    emergencyContacts: bodyParam.emergencyContacts,
+    educationRecords: bodyParam.educationRecords,
+    certificates: bodyParam.certificates,
+    workExperiences: bodyParam.workExperiences,
+  })
   ctx.body = result
 })
 
@@ -86,7 +100,18 @@ router.post('/insertUserAccountList', async (ctx: any) => {
  * 更新用户信息
  * POST /userAccount/updateUserAccount
  */
-router.post('/updateUserAccount', async (ctx: any) => {
+/**
+ * 根据用户ID获取用户信息（含紧急联系人）
+ * POST /userAccount/getUserWithContacts
+ */
+router.post('/getUserWithContacts', validate(getUserSchema, 'body'), async (ctx: any) => {
+  const bodyParam: any = ctx.request.body
+
+  const result = await userAccountLogic.getUserWithContacts({ id: bodyParam.id })
+  ctx.body = result
+})
+
+router.post('/updateUserAccount', validate(userUpdateSchema, 'body'), async (ctx: any) => {
   const bodyParam: any = ctx.request.body
 
   const data: Partial<UserAccountModel> & { id: string } = {
@@ -97,10 +122,21 @@ router.post('/updateUserAccount', async (ctx: any) => {
     email: bodyParam.email,
     phone: bodyParam.phone,
     avatar: bodyParam.avatar,
+    education: bodyParam.education || null,
+    graduateSchool: bodyParam.graduateSchool || null,
+    age: bodyParam.age || null,
+    birthday: bodyParam.birthday || null,
+    biography: bodyParam.biography || null,
     status: bodyParam.status
   }
 
-  const result = await userAccountLogic.updateUserAccount(data)
+  const result = await userAccountLogic.updateUserAccount({
+    ...data,
+    emergencyContacts: bodyParam.emergencyContacts,
+    educationRecords: bodyParam.educationRecords,
+    certificates: bodyParam.certificates,
+    workExperiences: bodyParam.workExperiences,
+  })
   ctx.body = result
 })
 

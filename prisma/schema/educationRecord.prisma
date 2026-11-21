@@ -1,0 +1,31 @@
+/// 教育经历表
+model EducationRecord {
+  /// 唯一标识 (UUID)
+  id            String   @id @default(uuid())
+  /// 关联的用户ID
+  userId        String   @map("user_id")
+  /// 入学时间戳
+  startTime     BigInt   @map("start_time")
+  /// 毕业时间戳
+  endTime       BigInt?  @map("end_time")
+  /// 学校名称
+  schoolName    String   @map("school_name") @db.VarChar(200)
+  /// 学历层次：小学/初中/高中/专科/本科/硕士/博士
+  educationLevel String  @map("education_level") @db.VarChar(20)
+  /// 学位（如：学士/硕士，非学历类可为空）
+  degree        String?  @map("degree") @db.VarChar(20)
+  /// 专业
+  major         String?  @map("major") @db.VarChar(100)
+  /// 是否在读：1=在读, 0=已毕业
+  isCurrent     Int      @default(0) @map("is_current") @db.TinyInt
+  /// 状态: 1=启用, 0=禁用
+  status        Int      @default(1) @db.TinyInt
+  /// 创建时间（毫秒时间戳）
+  createdTime   BigInt   @map("created_time")
+  /// 更新时间（毫秒时间戳）
+  updatedTime   BigInt   @map("updated_time")
+
+  @@index([userId])
+  @@index([startTime])
+  @@map("education_record")
+}

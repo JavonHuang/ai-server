@@ -1,7 +1,8 @@
 import Router from 'koa-router'
 import { menuLogic } from '@/logic'
 import { PageVO } from '@/utils/pageVO'
-import { getMissingFields } from '@/utils/validator'
+import validate from '@/middleware/validate'
+import { menuSearchSchema, menuInsertSchema, menuUpdateSchema, menuDeleteSchema } from '@/schema/menu'
 import type { MenuModel } from '@/generated/prisma/models/Menu'
 
 const router = new Router()
@@ -30,23 +31,20 @@ router.post('/menuFullTree', async (ctx: any) => {
  * 菜单分页列表（管理用）
  * POST /menu/menuPageList
  */
-router.post('/menuPageList', async (ctx: any) => {
+router.post('/menuPageList', validate(menuSearchSchema, 'body'), async (ctx: any) => {
   const bodyParam: any = ctx.request.body
 
   const searchData: Partial<MenuModel> = {
     name: bodyParam.name || undefined,
     parentId: bodyParam.parentId !== undefined ? bodyParam.parentId : undefined,
-    status: bodyParam.status !== undefined ? bodyParam.status : undefined,
-    visible: bodyParam.visible !== undefined ? bodyParam.visible : undefined,
+    status: bodyParam.status !== undefined ? Number(bodyParam.status) : undefined,
+    visible: bodyParam.visible !== undefined ? Number(bodyParam.visible) : undefined,
   }
-
-  const currentPage = parseInt(bodyParam.currentPage) || 1
-  const pageSize = parseInt(bodyParam.pageSize) || 10
 
   const params: PageVO<Partial<MenuModel>> = new PageVO<Partial<MenuModel>>(
     searchData,
-    currentPage,
-    pageSize
+    bodyParam.currentPage,
+    bodyParam.pageSize
   )
 
   const result = await menuLogic.getMenuPageList(params)
@@ -57,14 +55,8 @@ router.post('/menuPageList', async (ctx: any) => {
  * 新增菜单
  * POST /menu/insertMenu
  */
-router.post('/insertMenu', async (ctx: any) => {
+router.post('/insertMenu', validate(menuInsertSchema, 'body'), async (ctx: any) => {
   const bodyParam: any = ctx.request.body
-
-  const missing = getMissingFields(bodyParam, ['name'])
-  if (missing.length > 0) {
-    ctx.body = { code: 400, message: `参数不完整:[${missing.join(',')}]` }
-    return
-  }
 
   const data: Partial<MenuModel> & { parentId?: string | null } = {
     parentId: bodyParam.parentId || null,
@@ -87,14 +79,8 @@ router.post('/insertMenu', async (ctx: any) => {
  * 更新菜单
  * POST /menu/updateMenu
  */
-router.post('/updateMenu', async (ctx: any) => {
+router.post('/updateMenu', validate(menuUpdateSchema, 'body'), async (ctx: any) => {
   const bodyParam: any = ctx.request.body
-
-  const missing = getMissingFields(bodyParam, ['id'])
-  if (missing.length > 0) {
-    ctx.body = { code: 400, message: `参数不完整:[${missing.join(',')}]` }
-    return
-  }
 
   const data: Partial<MenuModel> & { id: string } = {
     id: bodyParam.id,
@@ -118,14 +104,8 @@ router.post('/updateMenu', async (ctx: any) => {
  * 删除菜单（同时删除所有子菜单）
  * POST /menu/deleteMenu
  */
-router.post('/deleteMenu', async (ctx: any) => {
+router.post('/deleteMenu', validate(menuDeleteSchema, 'body'), async (ctx: any) => {
   const bodyParam: any = ctx.request.body
-
-  const missing = getMissingFields(bodyParam, ['id'])
-  if (missing.length > 0) {
-    ctx.body = { code: 400, message: `参数不完整:[${missing.join(',')}]` }
-    return
-  }
 
   const result = await menuLogic.deleteMenu({ id: bodyParam.id })
   ctx.body = result

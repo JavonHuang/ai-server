@@ -1,0 +1,24 @@
+/// 紧急联系人表
+model EmergencyContact {
+  /// 唯一标识 (UUID)
+  id          String   @id @default(uuid())
+  /// 关联的用户ID
+  userId      String   @map("user_id")
+  /// 与用户的关系（如：父母、配偶、子女等）
+  relation    String   @map("relation") @db.VarChar(50)
+  /// 紧急联系人姓名
+  name        String   @map("name") @db.VarChar(100)
+  /// 电话
+  phone       String   @map("phone") @db.VarChar(20)
+  /// 住址
+  address     String?  @map("address") @db.VarChar(500)
+  /// 状态: 1=启用, 0=禁用
+  status      Int      @default(1) @db.TinyInt
+  /// 创建时间（毫秒时间戳）
+  createdTime BigInt @map("created_time")
+  /// 更新时间（毫秒时间戳）
+  updatedTime BigInt @map("updated_time")
+
+  @@index([userId])
+  @@map("emergency_contact")
+}

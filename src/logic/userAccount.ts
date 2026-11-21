@@ -1,27 +1,86 @@
 import { miniToken } from '@/token'
 import { BodyResult } from '@/utils/bodyResult'
 import { PageVO } from '@/utils/pageVO'
-import { generateID } from '@/utils/tool'
+import {
+  findUserByAccountAndPassword,
+  findUserAccountPage,
+  createUserAccount,
+  updateUserAccount as dbUpdateUserAccount,
+  findUserAccountById,
+  findEmergencyContactsByUserId,
+  findEducationRecordsByUserId,
+  findUserCertificatesByUserId,
+  findUserWorkExperiencesByUserId,
+} from '@/dbBase'
 import { prisma } from '@/utils/prisma'
 import type { UserAccountModel } from '@/generated/prisma/models/UserAccount'
+import type { EmergencyContactModel } from '@/generated/prisma/models/EmergencyContact'
 
-const loginAccount=async (params:PageVO<UserAccountModel>) =>{
-  // 根据账号和密码直接查询数据库
-  const userInfo: UserAccountModel | null = await prisma.userAccount.findFirst({
-    where: {
-      userAccount: params.data?.userAccount,
-      password: params.data?.password,
-    }
-  })
+const loginAccount = async (params: PageVO<UserAccountModel>) => {
+  const userInfo = await findUserByAccountAndPassword(
+    params.data?.userAccount || '',
+    params.data?.password || ''
+  )
 
   const pageVOData = new PageVO<Array<UserAccountModel>>(userInfo ? [userInfo] : [], params.currentPage, params.pageSize)
   pageVOData.total = userInfo ? 1 : 0
 
-  if(userInfo){
+  if (userInfo) {
     const token = miniToken.generateToken(userInfo)
-    return new BodyResult(`Bearer `+token, 200).resultPageVO(pageVOData);
-  }else{
-    return new BodyResult(null, 1001).resultPageVO(pageVOData);
+    return new BodyResult(`Bearer ` + token, 200).resultPageVO(pageVOData)
+  } else {
+    return new BodyResult(null, 1001).resultPageVO(pageVOData)
+  }
+}
+
+/**
+ * 根据用户ID获取用户信息（含紧急联系人、教育经历、证书、工作经历）- POST /userAccount/getUserWithContacts
+ */
+const getUserWithContacts = async (data: { id: string }) => {
+  try {
+    const user = await findUserAccountById(data.id)
+    if (!user) {
+      return new BodyResult(null, 1002).result() // 1002: 用户不存在
+    }
+
+    const { password, ...safeUser } = user
+
+    const [contacts, education, certificates, workExperiences] = await Promise.all([
+      findEmergencyContactsByUserId(data.id),
+      findEducationRecordsByUserId(data.id),
+      findUserCertificatesByUserId(data.id),
+      findUserWorkExperiencesByUserId(data.id),
+    ])
+
+    const safeContacts = (contacts as any[]).map((c: any) => ({
+      ...c,
+      status: String(c.status)
+    }))
+    const safeEducation = (education as any[]).map((e: any) => ({
+      ...e,
+      status: String(e.status),
+      isCurrent: String(e.isCurrent)
+    }))
+    const safeCertificates = (certificates as any[]).map((c: any) => ({
+      ...c,
+      status: String(c.status)
+    }))
+    const safeWorkExperiences = (workExperiences as any[]).map((w: any) => ({
+      ...w,
+      status: String(w.status),
+      isCurrent: String(w.isCurrent)
+    }))
+
+    return new BodyResult({
+      ...safeUser,
+      status: String(safeUser.status),
+      emergencyContacts: safeContacts,
+      educationRecords: safeEducation,
+      certificates: safeCertificates,
+      workExperiences: safeWorkExperiences
+    }, 200).result()
+  } catch (error: any) {
+    return new BodyResult(null, 1004).result() // 1004: 查询失败
   }
 }
 
@@ -29,108 +88,185 @@ const loginAccount=async (params:PageVO<UserAccountModel>) =>{
  * 用户列表（分页）- POST /userAccount/userAccountPageList
  */
 const userAccountPageList = async (params: PageVO<Partial<UserAccountModel>>) => {
-  const where: any = {}
+  const { total, list } = await findUserAccountPage(
+    params.data || {},
+    params.startIndex,
+    params.pageSize
+  )
 
-  // 构建查询条件
-  if (params.data?.userName) {
-    where.userName = { contains: params.data.userName }
-  }
-  if (params.data?.userAccount) {
-    where.userAccount = { contains: params.data.userAccount }
-  }
-  if (params.data?.email) {
-    where.email = { contains: params.data.email }
-  }
-  if (params.data?.phone) {
-    where.phone = { contains: params.data.phone }
-  }
-  if (params.data?.status !== undefined) {
-    where.status = params.data.status
-  }
-
-  // 查询总数
-  const total = await prisma.userAccount.count({ where })
-
-  // 查询数据
-  const userList = await prisma.userAccount.findMany({
-    where,
-    skip: params.startIndex,
-    take: params.pageSize,
-    orderBy: {
-      createdTime: 'desc'
-    }
-  })
-
-  // 移除密码字段并格式化时间
-  const safeUserList = userList.map(user => {
+  // 移除密码字段
+  const safeList = list.map(user => {
     const { password, ...safeUser } = user
     return {
       ...safeUser,
-      status: String(safeUser.status),
-      createdTime: safeUser.createdTime.toISOString().replace('T', ' ').substring(0, 19),
-      updatedTime: safeUser.updatedTime.toISOString().split('T')[0]
+      status: String(safeUser.status)
     }
   })
 
-  const pageVOData = new PageVO<Array<typeof safeUserList[0]>>(safeUserList, params.currentPage, params.pageSize)
+  const pageVOData = new PageVO<Array<typeof safeList[0]>>(safeList, params.currentPage, params.pageSize)
   pageVOData.total = total
 
-  return new BodyResult(safeUserList, 200).resultPageVO(pageVOData)
+  return new BodyResult(safeList, 200).resultPageVO(pageVOData)
 }
 
 /**
  * 新增用户 - POST /userAccount/insertUserAccountList
  */
-const insertUserAccount = async (data: Partial<UserAccountModel>) => {
+const insertUserAccount = async (data: Partial<UserAccountModel> & {
+  emergencyContacts?: any[]
+  educationRecords?: any[]
+  certificates?: any[]
+  workExperiences?: any[]
+}) => {
   try {
-    const newUser = await prisma.userAccount.create({
-      data: {
-        userName: data.userName || null,
-        userAccount: data.userAccount || '',
-        password: data.password || '',
-        email: data.email || null,
-        phone: data.phone || null,
-        avatar: data.avatar || null,
-        status: 1
+    const now = BigInt(Date.now())
+
+    // 使用 Prisma 事务保证用户和子表数据的原子性
+    const user = await prisma.$transaction(async (tx) => {
+      // 创建用户
+      const created = await (tx.userAccount as any).create({
+        data: {
+          userName: data.userName || null,
+          userAccount: data.userAccount || '',
+          password: data.password || '',
+          email: data.email || null,
+          phone: data.phone || null,
+          avatar: data.avatar || null,
+          education: data.education || null,
+          graduateSchool: data.graduateSchool || null,
+          age: data.age || null,
+          birthday: data.birthday || null,
+          biography: data.biography || null,
+          status: data.status ?? 1,
+          createdTime: now,
+          updatedTime: now
+        }
+      })
+
+      // 批量插入子表数据
+      const tasks: Promise<any>[] = []
+
+      if (data.emergencyContacts?.length) {
+        for (const item of data.emergencyContacts) {
+          tasks.push(tx.emergencyContact.create({
+            data: { ...item, userId: created.id, status: 1, createdTime: now, updatedTime: now }
+          }))
+        }
       }
+      if (data.educationRecords?.length) {
+        for (const item of data.educationRecords) {
+          tasks.push(tx.educationRecord.create({
+            data: { ...item, userId: created.id, status: 1, createdTime: now, updatedTime: now }
+          }))
+        }
+      }
+      if (data.certificates?.length) {
+        for (const item of data.certificates) {
+          tasks.push(tx.userCertificate.create({
+            data: { ...item, userId: created.id, status: 1, createdTime: now, updatedTime: now }
+          }))
+        }
+      }
+      if (data.workExperiences?.length) {
+        for (const item of data.workExperiences) {
+          tasks.push(tx.userWorkExperience.create({
+            data: { ...item, userId: created.id, status: 1, createdTime: now, updatedTime: now }
+          }))
+        }
+      }
+
+      if (tasks.length) {
+        await Promise.all(tasks)
+      }
+
+      return created
     })
 
     return new BodyResult(null, 200).result()
   } catch (error: any) {
-    // 处理唯一约束错误
     if (error.code === 'P2002') {
       return new BodyResult(null, 1003).result() // 1003: 账号已存在
     }
-    return new BodyResult(null, 1004).result() // 1004: 创建失败
+    return new BodyResult(error, 1004).result() // 1004: 创建失败
   }
 }
 
 /**
  * 更新用户信息 - POST /userAccount/updateUserAccount
  */
-const updateUserAccount = async (data: Partial<UserAccountModel> & { id: string }) => {
+const updateUserAccount = async (data: Partial<UserAccountModel> & {
+  id: string
+  emergencyContacts?: any[]
+  educationRecords?: any[]
+  certificates?: any[]
+  workExperiences?: any[]
+}) => {
   try {
-    const updateData: any = {}
+    const { id, ...updateData } = data
+    const now = BigInt(Date.now())
 
-    if (data.userName !== undefined) updateData.userName = data.userName
-    if (data.userAccount !== undefined) updateData.userAccount = data.userAccount
-    if (data.email !== undefined) updateData.email = data.email
-    if (data.phone !== undefined) updateData.phone = data.phone
-    if (data.avatar !== undefined) updateData.avatar = data.avatar
-    if (data.status !== undefined) updateData.status = Number(data.status)
+    await prisma.$transaction(async (tx) => {
+      // 更新用户基本信息
+      await (tx.userAccount as any).update({
+        where: { id },
+        data: {
+          ...(updateData.userName !== undefined && { userName: updateData.userName }),
+          ...(updateData.email !== undefined && { email: updateData.email }),
+          ...(updateData.phone !== undefined && { phone: updateData.phone }),
+          ...(updateData.avatar !== undefined && { avatar: updateData.avatar }),
+          ...(updateData.education !== undefined && { education: updateData.education }),
+          ...(updateData.graduateSchool !== undefined && { graduateSchool: updateData.graduateSchool }),
+          ...(updateData.age !== undefined && { age: updateData.age }),
+          ...(updateData.birthday !== undefined && { birthday: updateData.birthday }),
+          ...(updateData.biography !== undefined && { biography: updateData.biography }),
+          ...(updateData.status !== undefined && { status: Number(updateData.status) }),
+          updatedTime: now
+        }
+      })
 
-    const updatedUser = await prisma.userAccount.update({
-      where: { id: data.id },
-      data: updateData
+      // 删除重建策略：先删后插
+      if (data.emergencyContacts !== undefined) {
+        await tx.emergencyContact.deleteMany({ where: { userId: id } })
+        for (const item of data.emergencyContacts) {
+          await tx.emergencyContact.create({
+            data: { ...item, userId: id, status: 1, createdTime: now, updatedTime: now }
+          })
+        }
+      }
+
+      if (data.educationRecords !== undefined) {
+        await tx.educationRecord.deleteMany({ where: { userId: id } })
+        for (const item of data.educationRecords) {
+          await tx.educationRecord.create({
+            data: { ...item, userId: id, status: 1, createdTime: now, updatedTime: now }
+          })
+        }
+      }
+
+      if (data.certificates !== undefined) {
+        await tx.userCertificate.deleteMany({ where: { userId: id } })
+        for (const item of data.certificates) {
+          await tx.userCertificate.create({
+            data: { ...item, userId: id, status: 1, createdTime: now, updatedTime: now }
+          })
+        }
+      }
+
+      if (data.workExperiences !== undefined) {
+        await tx.userWorkExperience.deleteMany({ where: { userId: id } })
+        for (const item of data.workExperiences) {
+          await tx.userWorkExperience.create({
+            data: { ...item, userId: id, status: 1, createdTime: now, updatedTime: now }
+          })
+        }
+      }
     })
 
     return new BodyResult(null, 200).result()
   } catch (error: any) {
-    // 处理唯一约束错误
     if (error.code === 'P2002') {
       return new BodyResult(null, 1003).result() // 1003: 账号已存在
     }
-    // 用户不存在
     if (error.code === 'P2025') {
       return new BodyResult(null, 1002).result() // 1002: 用户不存在
     }
@@ -138,9 +274,10 @@ const updateUserAccount = async (data: Partial<UserAccountModel> & { id: string 
   }
 }
 
-export const userAccountLogic  = {
+export const userAccountLogic = {
   loginAccount,
   userAccountPageList,
   insertUserAccount,
   updateUserAccount,
+  getUserWithContacts,
 }
