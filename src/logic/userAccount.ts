@@ -27,9 +27,9 @@ const loginAccount = async (params: PageVO<UserAccountModel>) => {
 
   if (userInfo) {
     const token = miniToken.generateToken(userInfo)
-    return new BodyResult(`Bearer ` + token, 200).resultPageVO(pageVOData)
+    return new BodyResult(`Bearer ` + token, 200).result()
   } else {
-    return new BodyResult(null, 1001).resultPageVO(pageVOData)
+    return new BodyResult(null, 1001).result()
   }
 }
 
@@ -118,7 +118,7 @@ const insertUserAccount = async (data: Partial<UserAccountModel> & {
   certificates?: any[]
   workExperiences?: any[]
 }) => {
-  try {
+  // try {
     const now = BigInt(Date.now())
 
     // 使用 Prisma 事务保证用户和子表数据的原子性
@@ -183,12 +183,12 @@ const insertUserAccount = async (data: Partial<UserAccountModel> & {
     })
 
     return new BodyResult(null, 200).result()
-  } catch (error: any) {
-    if (error.code === 'P2002') {
-      return new BodyResult(null, 1003).result() // 1003: 账号已存在
-    }
-    return new BodyResult(error, 1004).result() // 1004: 创建失败
-  }
+  // } catch (error: any) {
+  //   if (error.code === 'P2002') {
+  //     return new BodyResult(null, 1003).result() // 1003: 账号已存在
+  //   }
+  //   return new BodyResult(error, 1004).result() // 1004: 创建失败
+  // }
 }
 
 /**
